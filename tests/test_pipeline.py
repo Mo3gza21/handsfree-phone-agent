@@ -91,7 +91,7 @@ def server():
 
 
 def test_leaderboard_ranks_the_better_model_first(server, tmp_path):
-    out = tmp_path / "board.json"
+    out = tmp_path / "data" / "board.json"  # folder doesn't exist yet, like a fresh checkout
     council.leaderboard([LLM("random", server), LLM("perfect", server)], n=30, workers=4, out=out)
     board = json.loads(out.read_text())
     assert board["ranking"][0] == "perfect"

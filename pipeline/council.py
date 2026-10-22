@@ -76,6 +76,7 @@ def leaderboard(models: list[LLM], n: int, workers: int, out: Path):
         b = board[k]
         weak = [f for f, v in b["by_family"].items() if v < 0.7]
         print(f"{i}. {k:30s} steps {b['step_accuracy']:.0%}  tasks {b['task_success']:.0%}  weak at: {', '.join(weak) or '-'}")
+    out.parent.mkdir(parents=True, exist_ok=True)  # data/ is gitignored, so a fresh checkout lacks it
     out.write_text(json.dumps({"ranking": ranked, "models": board}, indent=2, ensure_ascii=False))
     print(f"\nSaved {out}")
 
