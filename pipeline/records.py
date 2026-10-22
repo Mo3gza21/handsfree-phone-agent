@@ -32,7 +32,8 @@ def screen_from_dict(d: dict) -> Screen:
 
 def scenario_to_record(sc: Scenario, source: str = "simulator") -> dict:
     return {"source": source, "family": sc.family, "lang": sc.lang, "goal": sc.goal,
-            "steps": [{"screen": screen_to_dict(st.screen), "action": st.action} for st in sc.steps]}
+            "steps": [{"screen": screen_to_dict(st.screen), "action": st.action,
+                       **({"alts": st.alts} if st.alts else {})} for st in sc.steps]}
 
 
 def history_entry(action: dict, screen: Screen) -> str:

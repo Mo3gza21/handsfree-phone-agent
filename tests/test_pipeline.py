@@ -152,3 +152,24 @@ def test_ollama_without_think_support_falls_back(server):
     messages, _, gold = next(step_prompts(scenario_to_record(next(generate(1, seed=1)))))
     assert json.loads(m.chat(messages)) == gold
     assert m.send_think is False and "think" not in OLLAMA_CALLS[-1]
+
+
+def test_equally_valid_alternatives_score_as_correct():
+    """Tapping the app icon instead of open_app, or a suggestion instead of Enter, is still right."""
+    records = [scenario_to_record(sc) for sc in generate(300, seed=5)]
+    with_alts = [r for r in records if any(s.get("alts") for s in r["steps"])]
+    assert len(with_alts) > 50
+    for r in records:
+        for s in r["steps"]:
+            ids = {e["id"] for e in s["screen"]["elements"]}
+            assert all(a.get("id", 1) in ids for a in s.get("alts", []))
+
+    class PrefersAlternatives:
+        def __init__(self, record):
+            self.answers = iter(s.get("alts", [s["action"]])[0] for s in record["steps"])
+
+        def chat(self, messages, **kw):
+            return json.dumps(next(self.answers), ensure_ascii=False)
+
+    for r in with_alts[:20]:
+        assert all(council.run_task(PrefersAlternatives(r), r))

@@ -39,13 +39,14 @@ EVAL_SEED = 999  # leaderboard tasks; build_dataset never uses this seed
 def run_task(model: LLM, record: dict) -> list[bool]:
     """Score each step given the correct history (so one slip doesn't sink the rest)."""
     results = []
-    for messages, screen, gold in step_prompts(record):
+    for (messages, screen, gold), step in zip(step_prompts(record), record["steps"]):
         try:
             reply = model.chat(messages, max_tokens=120)
         except Exception as e:  # a dead server shouldn't kill the whole run
             print(f"  {model}: request failed: {e}", file=sys.stderr)
             reply = ""
-        results.append(same_action(parse_action(reply, screen.ids()), gold))
+        pred = parse_action(reply, screen.ids())
+        results.append(any(same_action(pred, ok) for ok in [gold] + step.get("alts", [])))
     return results
 
 

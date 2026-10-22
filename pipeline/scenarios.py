@@ -7,7 +7,7 @@ also the yardstick the council uses to score each teacher model.
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from spec import Element, Screen
 
@@ -47,6 +47,9 @@ TIMES = ["7:00", "10:32", "Yesterday", "Monday", "9:15", "12:40"]
 class Step:
     screen: Screen
     action: dict
+    # Other actions that are just as right here (only used for scoring; training
+    # always uses `action` so the student learns one consistent way).
+    alts: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -78,11 +81,14 @@ def _say(lang, en, ar):
     return en if lang == "en" else ar
 
 
-def start_screen(rng) -> Screen:
+def start_screen(rng, target: str | None = None) -> Screen:
     """Whatever the user happened to be looking at."""
     if rng.random() < 0.5:
         b = Builder("Launcher")
-        for app in rng.sample(APPS, 8):
+        apps = rng.sample(APPS, 8)
+        if target and target not in apps and rng.random() < 0.5:
+            apps[rng.randrange(8)] = target
+        for app in apps:
             b.add("button", app)
         b.add("edit", "Search")
         return b.screen
@@ -93,7 +99,9 @@ def start_screen(rng) -> Screen:
 
 
 def open_step(rng, app) -> Step:
-    return Step(start_screen(rng), {"action": "open_app", "app": app})
+    screen = start_screen(rng, target=app)
+    icon = [e for e in screen.elements if screen.app == "Launcher" and e.label == app]
+    return Step(screen, {"action": "open_app", "app": app}, [{"action": "tap", "id": icon[0].id}] if icon else [])
 
 
 def contact_name(rng, pair):
@@ -149,7 +157,7 @@ def whatsapp_message(rng, lang):
     steps = [open_step(rng, "WhatsApp")]
     if rng.random() < 0.3:
         s, _ = chat_list(rng, stored, include_target=False)
-        steps.append(Step(s, {"action": "scroll", "direction": "down"}))
+        steps.append(Step(s, {"action": "scroll", "direction": "down"}, [{"action": "tap", "id": 1}]))
     s, rows = chat_list(rng, stored)
     steps.append(Step(s, {"action": "tap", "id": rows[stored].id}))
     s, box, _ = chat_screen(stored, rng=rng)
@@ -202,17 +210,21 @@ def call_contact(rng, lang):
     }[lang])
     steps = [open_step(rng, "Phone")]
     b = Builder("Phone")
-    b.add("button", "Search contacts")
+    search = b.add("button", "Search contacts")
     tabs = {t: b.add("tab", t, checked=(t == "Recents")) for t in ("Favorites", "Recents", "Contacts")}
+    alts = [{"action": "tap", "id": search.id}]
     for _ in range(3):
-        b.add("item", f"{contact_name(rng, rng.choice(NAMES))}, {rng.choice(['Missed', 'Outgoing', 'Incoming'])}, {rng.choice(TIMES)}")
+        who = contact_name(rng, rng.choice(NAMES))
+        row = b.add("item", f"{who}, {rng.choice(['Missed', 'Outgoing', 'Incoming'])}, {rng.choice(TIMES)}")
+        if who == stored:  # calling back from Recents works too
+            alts.append({"action": "tap", "id": row.id})
     b.add("button", "Keypad")
-    steps.append(Step(b.screen, {"action": "tap", "id": tabs["Contacts"].id}))
+    steps.append(Step(b.screen, {"action": "tap", "id": tabs["Contacts"].id}, alts))
     others = sorted({contact_name(rng, p) for p in NAMES if p != pair})
     if rng.random() < 0.35:  # target is further down the list
         first = rng.sample(others, 6)
         s, _ = phone_contacts(rng, first)
-        steps.append(Step(s, {"action": "scroll", "direction": "down"}))
+        steps.append(Step(s, {"action": "scroll", "direction": "down"}, [{"action": "tap", "id": 1}]))
     names = rng.sample(others, 5)
     names.insert(rng.randint(0, 5), stored)
     s, rows = phone_contacts(rng, names)
@@ -431,9 +443,8 @@ def search_and_pick(rng, lang, app, query_pair, goal):
         steps.append(Step(b.screen, {"action": "type", "id": box.id, "text": q}))
         b = Builder(app)
         b.add("edit", q, focused=True)
-        for x in (q, q + " live", q + " 2026"):
-            b.add("item", x)
-        steps.append(Step(b.screen, {"action": "enter"}))
+        sugg = [b.add("item", x) for x in (q, q + " live", q + " 2026")]
+        steps.append(Step(b.screen, {"action": "enter"}, [{"action": "tap", "id": sugg[0].id}]))
         b = Builder(app)
         b.add("edit", q)
         first = b.add("item", f"{q} - official, {rng.randint(1, 50)}M views")
@@ -450,9 +461,8 @@ def search_and_pick(rng, lang, app, query_pair, goal):
         steps.append(Step(b.screen, {"action": "type", "id": bar.id, "text": q}))
         b = Builder(app)
         b.add("edit", q, focused=True)
-        for x in (q, q + " today"):
-            b.add("item", x)
-        steps.append(Step(b.screen, {"action": "enter"}))
+        sugg = [b.add("item", x) for x in (q, q + " today")]
+        steps.append(Step(b.screen, {"action": "enter"}, [{"action": "tap", "id": sugg[0].id}]))
         b = Builder(app)
         b.add("edit", q)
         b.add("text", "All")
