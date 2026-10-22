@@ -58,7 +58,9 @@ def main():
     AutoTokenizer.from_pretrained(str(a.lora)).save_pretrained(str(merged))
 
     quantize = ensure_llama_cpp(a.llama_cpp)
-    sh([sys.executable, "-m", "pip", "install", "-q", "-r", str(a.llama_cpp / "requirements" / "requirements-convert_hf_to_gguf.txt")])
+    # Not llama.cpp's requirements file: it pins a CPU-only torch and an older transformers, which would
+    # replace the GPU setup used for training. The converter only needs its own gguf package on top.
+    sh([sys.executable, "-m", "pip", "install", "-q", str(a.llama_cpp / "gguf-py"), "sentencepiece"])
     f16 = a.out / "phone-agent-f16.gguf"
     sh([sys.executable, str(a.llama_cpp / "convert_hf_to_gguf.py"), str(merged), "--outfile", str(f16), "--outtype", "f16"])
     final = a.out / f"phone-agent-{a.quant.lower()}.gguf"

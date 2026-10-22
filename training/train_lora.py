@@ -9,6 +9,7 @@ is enough. Only the action JSON is trained on, not the prompt.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 from pathlib import Path
 
 import torch
@@ -18,6 +19,13 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import SFTConfig, SFTTrainer
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def warmup(ratio: float) -> dict:
+    """transformers 5 dropped warmup_ratio; there warmup_steps takes a fraction of the total."""
+    if "warmup_ratio" in {f.name for f in dataclasses.fields(SFTConfig)}:
+        return {"warmup_ratio": ratio}
+    return {"warmup_steps": ratio}
 
 
 def main():
@@ -53,7 +61,7 @@ def main():
     cfg = SFTConfig(
         output_dir=str(a.out), num_train_epochs=a.epochs, max_steps=a.max_steps, learning_rate=a.lr,
         per_device_train_batch_size=a.batch, per_device_eval_batch_size=a.batch,
-        gradient_accumulation_steps=a.grad_accum, lr_scheduler_type="cosine", warmup_ratio=0.03,
+        gradient_accumulation_steps=a.grad_accum, lr_scheduler_type="cosine", **warmup(0.03),
         logging_steps=20, eval_strategy="steps", eval_steps=200, save_steps=200, save_total_limit=2,
         max_length=a.max_len, completion_only_loss=True, bf16=bf16, fp16=cuda and not bf16,
         gradient_checkpointing=cuda, report_to="none",
