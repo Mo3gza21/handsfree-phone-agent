@@ -1,0 +1,11 @@
+data/
+machine_report.json
+__pycache__/
+.pytest_cache/
+outputs/
+*.gguf
+android/app/src/main/cpp/llama.cpp/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
