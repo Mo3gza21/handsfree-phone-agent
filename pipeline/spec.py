@@ -44,7 +44,8 @@ DIRECTIONS = ("up", "down", "left", "right")
 
 # GBNF grammar used on the phone to force well-formed output from a small model.
 ACTION_GRAMMAR = r'''root ::= "{" ws "\"action\"" ws ":" ws body ws "}"
-body ::= "\"open_app\"" ws "," ws "\"app\"" ws ":" ws str
+body ::= (
+         "\"open_app\"" ws "," ws "\"app\"" ws ":" ws str
        | "\"tap\"" ws "," ws "\"id\"" ws ":" ws int
        | "\"long_press\"" ws "," ws "\"id\"" ws ":" ws int
        | "\"type\"" ws "," ws "\"id\"" ws ":" ws int ws "," ws "\"text\"" ws ":" ws str
@@ -52,6 +53,7 @@ body ::= "\"open_app\"" ws "," ws "\"app\"" ws ":" ws str
        | "\"scroll\"" ws "," ws "\"direction\"" ws ":" ws ("\"up\"" | "\"down\"" | "\"left\"" | "\"right\"")
        | "\"ask_user\"" ws "," ws "\"question\"" ws ":" ws str
        | "\"done\"" ws "," ws "\"say\"" ws ":" ws str
+       )
 str ::= "\"" ([^"\\\n] | "\\" ["\\/bfnrtu])* "\""
 int ::= [0-9]+
 ws ::= " "?

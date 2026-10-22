@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hands-Free Agent</string>
+    <string name="accessibility_description">Lets the on-device assistant read the screen and tap, type and scroll for you when you speak a command. Nothing leaves the phone.</string>
+</resources>

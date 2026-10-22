@@ -1,0 +1,12 @@
+# Data pipeline + council (runs on any laptop)
+requests>=2.31
+pytest>=8
+
+# Training + export (GPU machine or Google Colab)
+torch>=2.3
+transformers>=4.51
+datasets>=3.0
+peft>=0.15
+trl>=0.21
+accelerate>=1.0
+bitsandbytes>=0.45; sys_platform == "linux" or sys_platform == "win32"
