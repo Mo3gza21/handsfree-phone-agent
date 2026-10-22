@@ -93,24 +93,42 @@ def model_dirs(extra: list[str]) -> list[Path]:
 
 
 def scan_files(dirs: list[Path]) -> list[dict]:
-    """Model files over 100 MB. Ollama blobs are reported by `ollama list` instead."""
+    """Model files over 100 MB. A Hugging Face model folder (config.json + weight
+    shards) counts as one model. Ollama blobs are reported by `ollama list` instead."""
     seen, found = set(), []
     for d in dirs:
         for root, subdirs, files in os.walk(d):
             subdirs[:] = [s for s in subdirs if not s.startswith(".") and s not in ("node_modules", "blobs")]
+            here = Path(root)
+            if here in seen:
+                continue
+            if "config.json" in files and any(f.endswith(".safetensors") for f in files):
+                seen.add(here)
+                size = sum((here / f).stat().st_size for f in files if f.endswith(".safetensors"))
+                found.append({"name": here.name, "path": str(here), "size_gb": round(size / GB, 2),
+                              "where": "hf-folder", "arch": hf_arch(here / "config.json")})
+                continue
             for f in files:
-                p = Path(root) / f
+                p = here / f
                 if p.suffix.lower() not in MODEL_EXT:
                     continue
                 try:
                     size = p.stat().st_size
                 except OSError:
                     continue
-                if size < 100 * 1024 ** 2 or p in seen:
+                if size < 100 * 1024 ** 2 or p in seen or any(q in p.parents for q in seen):
                     continue
                 seen.add(p)
                 found.append({"name": p.name, "path": str(p), "size_gb": round(size / GB, 2), "where": "file"})
     return found
+
+
+def hf_arch(config: Path) -> str:
+    try:
+        cfg = json.loads(config.read_text(encoding="utf-8"))
+        return (cfg.get("architectures") or [cfg.get("model_type", "?")])[0]
+    except (OSError, ValueError):
+        return "?"
 
 
 def size_gb(m: dict) -> float:
@@ -130,11 +148,16 @@ def advise(ram: float, gpu: list[dict], disk_free: float, models: list[dict]) ->
     fits = [m for m in usable if 0 < size_gb(m) < ram * 0.6]
     too_big = [m for m in usable if size_gb(m) >= ram * 0.6]
 
+    hf = [m for m in models if m["where"] == "hf-folder"
+          and any(k in m.get("arch", "") for k in ("CausalLM", "ConditionalGeneration"))]
     if not models:
         tips.append("No models found. Pass your models folder: python scripts/check_machine.py \"<folder>\"")
-    elif not usable:
-        tips.append("Found model files, but none in GGUF/Ollama form. The council needs them served by Ollama or "
-                    "LM Studio. Safetensors models can be converted, or pull GGUF versions in Ollama.")
+    if hf:
+        tips.append("Raw Hugging Face models (Ollama can't serve these as-is): " + ", ".join(m["name"] for m in hf)
+                    + ". Easiest: `ollama pull` the same model, already shrunk. Or import your copy: a Modelfile "
+                    "with `FROM <folder>` and `ollama create <name> -q q4_K_M -f Modelfile`.")
+    if not usable:
+        tips.append("No model is ready for the council yet: it needs models served by Ollama or LM Studio.")
     if fits:
         tips.append(f"Council (models teaching each other): can run here with {len(fits)} model(s): "
                     + ", ".join(m["name"] for m in fits) + ". Run them one at a time (--workers 1).")

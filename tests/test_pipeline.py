@@ -59,12 +59,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        GOLD_SEEN.add(body["model"])
+        if self.path == "/api/chat":  # Ollama's native endpoint
+            OLLAMA_CALLS.append(body)
+            if "think" in body and body["model"] == "old-ollama":
+                return self._send({"error": "invalid field: think"}, 400)
+            reply = fake_reply(body["model"].replace("old-ollama", "perfect"), body["messages"])
+            return self._send({"message": {"role": "assistant", "content": reply}})
         self._send({"choices": [{"message": {"content": fake_reply(body["model"], body["messages"])}}]})
 
-    def _send(self, obj):
+    def _send(self, obj, status=200):
         data = json.dumps(obj).encode()
-        self.send_response(200)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
@@ -74,7 +79,7 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-GOLD_SEEN: set[str] = set()
+OLLAMA_CALLS: list[dict] = []
 
 
 @pytest.fixture(scope="module")
@@ -130,3 +135,20 @@ def test_build_dataset(tmp_path):
     assert r["prompt"][0]["content"] == SYSTEM_PROMPT and r["completion"][0]["role"] == "assistant"
     json.loads(r["completion"][0]["content"])
     assert any("Previous actions:\n1. open_app" in x["prompt"][1]["content"] for x in rows)
+
+
+def test_ollama_native_turns_thinking_off(server):
+    m = LLM("perfect", server)
+    m.ollama = True
+    rec = scenario_to_record(next(generate(1, seed=1)))
+    messages, _, gold = next(step_prompts(rec))
+    assert json.loads(m.chat(messages)) == gold
+    assert OLLAMA_CALLS[-1]["think"] is False and OLLAMA_CALLS[-1]["options"]["num_predict"] == 400
+
+
+def test_ollama_without_think_support_falls_back(server):
+    m = LLM("old-ollama", server)
+    m.ollama = True
+    messages, _, gold = next(step_prompts(scenario_to_record(next(generate(1, seed=1)))))
+    assert json.loads(m.chat(messages)) == gold
+    assert m.send_think is False and "think" not in OLLAMA_CALLS[-1]
