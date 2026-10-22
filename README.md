@@ -81,16 +81,19 @@ command appends to `data\` as it goes, so you can stop it any time and keep what
 python build_dataset.py --sim 5000 --extra ..\data\paraphrased.jsonl ..\data\invented.jsonl
 ```
 
-### 4. Train + shrink + test: on Google Colab (free GPU)
+### 4. Train + shrink + test: on Kaggle or Colab (free GPU)
 
-Your laptop doesn't need a GPU. Open `training/colab_pipeline.ipynb` in
-[Google Colab](https://colab.research.google.com) (File → Upload notebook), pick a **T4 GPU**
-runtime and run the cells. It trains the student, converts it to
-`phone-agent-q4_k_m.gguf` (~1 GB), tests it on 150 unseen tasks, and downloads the file.
+Your laptop doesn't need a GPU.
 
-Colab can also run the council with bigger teachers than your laptop can (section 2 of the notebook),
-so steps 2 and 3 can happen there too. To train on the data your laptop made, upload the `data`
-folder to the Colab session first.
+- **Kaggle (recommended):** 30 free GPU hours a week, sessions up to 12 h. Create a notebook,
+  **File → Import Notebook**, upload `training/kaggle_pipeline.ipynb`, and follow the first cell
+  (T4 x2, internet on, a `GITHUB_TOKEN` secret). It can also run the whole council on the GPU
+  with bigger teachers, which is much faster than a laptop CPU. That makes steps 1-3 optional.
+- **Colab:** upload `training/colab_pipeline.ipynb` and pick a **T4 GPU** runtime.
+
+Either one trains the student, converts it to `phone-agent-q4_k_m.gguf` (~1 GB), tests it on 150
+unseen tasks, and gives you the file. To train on data your laptop made, upload the `data`
+folder first.
 
 If you have an NVIDIA GPU with 8 GB+ you can train locally instead:
 `pip install -r requirements.txt`, then `python training\train_lora.py` and `python training\export_gguf.py`.
@@ -123,7 +126,8 @@ pipeline/council.py        leaderboard / paraphrase / invent
 pipeline/build_dataset.py  merge into data/train.jsonl, data/val.jsonl
 training/train_lora.py     LoRA / QLoRA fine-tune
 training/export_gguf.py    merge + convert + quantize to GGUF for the phone
-training/colab_pipeline.ipynb  everything above on a free GPU
+training/kaggle_pipeline.ipynb everything above on Kaggle's free GPU
+training/colab_pipeline.ipynb  same, for Google Colab
 scripts/check_machine.py   what can this laptop do?
 android/                   the phone app (Kotlin + llama.cpp)
 tests/                     pytest; runs the council against fake model servers
