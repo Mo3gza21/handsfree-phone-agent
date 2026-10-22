@@ -28,6 +28,16 @@ def warmup(ratio: float) -> dict:
     return {"warmup_steps": ratio}
 
 
+def plain_fp32_loss_matmul():
+    """TRL's chunked loss asks for fp16/bf16 inputs -> fp32 output matmuls, which need compute 8.0+, so it crashes
+    on a T4. Make it upcast to fp32 first, as it does on older torch."""
+    try:
+        from trl.kernels import chunked_logprob
+    except ImportError:  # older TRL computes the loss from the full logits instead
+        return
+    chunked_logprob._MM_OUT_DTYPE = False
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="Qwen/Qwen2.5-1.5B-Instruct")
@@ -43,7 +53,10 @@ def main():
     a = ap.parse_args()
 
     cuda = torch.cuda.is_available()
-    bf16 = cuda and torch.cuda.is_bf16_supported()
+    # Only Ampere (compute 8.0) and newer have real bf16; torch reports it "supported" on a T4 too (emulated).
+    bf16 = cuda and torch.cuda.get_device_capability()[0] >= 8
+    if cuda and not bf16:
+        plain_fp32_loss_matmul()
     quant = None
     if cuda:
         quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True,
