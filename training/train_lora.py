@@ -83,6 +83,11 @@ def main():
                       target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"])
     trainer = SFTTrainer(model=model, args=cfg, train_dataset=ds["train"], eval_dataset=ds["val"],
                          processing_class=tok, peft_config=lora)
+    if cuda and not bf16:
+        # TRL turns QLoRA adapters into bf16; fp16 training can't unscale bf16 gradients, so keep them in fp32.
+        for p in trainer.model.parameters():
+            if p.requires_grad:
+                p.data = p.data.float()
     trainer.train()
     trainer.save_model(str(a.out))
     tok.save_pretrained(str(a.out))
